@@ -101,10 +101,14 @@ function compareVersions(v1, v2) {
  */
 async function getLatestVersionFromGitHub() {
     const GITHUB_REPO = 'justlovemaki/AIClient-2-API';
-    const apiUrl = `https://gh-proxy.org/https://api.github.com/repos/${GITHUB_REPO}/tags`;
-    
-    try {
-        logger.info('[Update] Fetching latest version from GitHub API...');
+    const githubApiUrl = `https://api.github.com/repos/${GITHUB_REPO}/tags`;
+    const githubMirrors = [
+        'https://gh.llkk.cc/',
+        'https://gh-proxy.org/'
+    ];
+
+    const fetchLatestVersion = async (apiUrl) => {
+        logger.info(`[Update] Fetching latest version from GitHub API: ${apiUrl}`);
         const response = await fetchWithProxy(apiUrl, {
             headers: {
                 'Accept': 'application/vnd.github.v3+json',
@@ -136,8 +140,23 @@ async function getLatestVersionFromGitHub() {
         versions.sort((a, b) => compareVersions(b, a));
         
         return versions[0];
+    };
+
+    for (const mirrorUrl of githubMirrors) {
+        try {
+            const latestVersion = await fetchLatestVersion(`${mirrorUrl}${githubApiUrl}`);
+            if (latestVersion) {
+                return latestVersion;
+            }
+        } catch (error) {
+            logger.warn(`[Update] Failed to fetch from GitHub API via mirror ${mirrorUrl}:`, error.message);
+        }
+    }
+
+    try {
+        return await fetchLatestVersion(githubApiUrl);
     } catch (error) {
-        logger.warn('[Update] Failed to fetch from GitHub API:', error.message);
+        logger.warn('[Update] Failed to fetch from GitHub API without mirror:', error.message);
         return null;
     }
 }
